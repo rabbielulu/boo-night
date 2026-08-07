@@ -1,9 +1,9 @@
-const CACHE_NAME = "boo-night-v14";
+const CACHE_NAME = "boo-night-v15";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
-  "./app.js?v=14",
+  "./app.js?v=15",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-180.png",
@@ -11,19 +11,18 @@ const APP_SHELL = [
   "./icon-512.png",
   "./assets/ghosts/expression-sheet.png",
   "./assets/ghosts/sleeping.png",
-  "./assets/audio/touch-1.wav",
-  "./assets/audio/bump-1.wav",
-  "./assets/audio/bump-2.wav",
-  "./assets/audio/bump-3.wav",
-  "./assets/audio/bump-4.wav",
-  "./assets/audio/bump-5.wav",
-  "./assets/audio/whoosh.wav",
-  "./assets/audio/appear.wav",
-  "./assets/audio/pop.wav",
-  "./assets/audio/magic.wav",
-  "./assets/audio/bubble.wav",
-  "./assets/audio/moon.wav",
-  "./assets/audio/Ground%20BGM.mp3",
+  "./assets/audio/touch-1.wav?v=15",
+  "./assets/audio/bump-1.wav?v=15",
+  "./assets/audio/bump-2.wav?v=15",
+  "./assets/audio/bump-3.wav?v=15",
+  "./assets/audio/bump-4.wav?v=15",
+  "./assets/audio/bump-5.wav?v=15",
+  "./assets/audio/whoosh.wav?v=15",
+  "./assets/audio/appear.wav?v=15",
+  "./assets/audio/pop.wav?v=15",
+  "./assets/audio/magic.wav?v=15",
+  "./assets/audio/bubble.wav?v=15",
+  "./assets/audio/moon.wav?v=15",
 ];
 
 self.addEventListener("install", (event) => {
@@ -42,6 +41,10 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
+  if (decodeURIComponent(url.pathname).endsWith("/Ground BGM.mp3")) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
   const networkFirst = event.request.mode === "navigate"
     || ["index.html", "app.js", "styles.css", "manifest.webmanifest"].includes(url.pathname.split("/").pop());
 

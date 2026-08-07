@@ -122,7 +122,7 @@ async function assertControlsInViewport(page) {
     HTMLMediaElement.prototype.play = function playTrackedMedia(...args) {
       if (this.src.includes("Ground%20BGM.mp3")) {
         window.__bgmPlayCalls += 1;
-        window.__bgmSnapshot = { loop: this.loop, volume: this.volume, src: this.src };
+        window.__bgmSnapshot = { loop: this.loop, volume: this.volume, preload: this.preload, src: this.src };
       }
       return mediaPlay.apply(this, args);
     };
@@ -159,7 +159,7 @@ async function assertControlsInViewport(page) {
   if (sleepGhost.visible < 5000 || sleepGhost.transparent < 5000 || sleepGhost.green > 20) {
     throw new Error(`Sleeping ghost chroma key failed: ${JSON.stringify(sleepGhost)}`);
   }
-  const appSource = await page.evaluate(() => fetch("app.js?v=14").then((response) => response.text()));
+  const appSource = await page.evaluate(() => fetch("app.js?v=15").then((response) => response.text()));
   for (const marker of [
     "const count = width < 500 ? 3 : 4;",
     "for (let i = 0; i < 12; i += 1)",
@@ -170,6 +170,7 @@ async function assertControlsInViewport(page) {
     "ghost.dizzyUntil = now + 3000",
     "window.addEventListener(\"devicemotion\", handleDeviceMotion)",
     "const SOUND_ASSETS = {",
+    "touch-1.wav?v=15",
     "bump-5.wav",
     "playBufferedSound(kind, size, now)",
     "pendingTouchSound",
@@ -214,7 +215,7 @@ async function assertControlsInViewport(page) {
     pauseCalls: window.__bgmPauseCalls,
     snapshot: window.__bgmSnapshot,
   }));
-  if (!bgmBeforeToggle.snapshot?.loop || Math.abs(bgmBeforeToggle.snapshot.volume - 0.28) > 0.001) {
+  if (!bgmBeforeToggle.snapshot?.loop || bgmBeforeToggle.snapshot.preload !== "none" || !bgmBeforeToggle.snapshot.src.includes("?v=15") || Math.abs(bgmBeforeToggle.snapshot.volume - 0.28) > 0.001) {
     throw new Error(`Background music configuration failed: ${JSON.stringify(bgmBeforeToggle)}`);
   }
   const bufferedSourcesBeforeMagic = await page.evaluate(() => window.__bufferSourceStarts);

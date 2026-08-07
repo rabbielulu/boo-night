@@ -22,7 +22,7 @@
   const ghostSprites = new Map();
   const GHOST_SPRITE_ATLAS = "./assets/ghosts/expression-sheet.png";
   const SLEEP_GHOST_ASSET = "./assets/ghosts/sleeping.png";
-  const BGM_ASSET = "./assets/audio/Ground%20BGM.mp3";
+  const BGM_ASSET = "./assets/audio/Ground%20BGM.mp3?v=15";
   const GHOST_SPRITE_FRAMES = {
     laugh: { x: 42, y: 52, width: 440, height: 400 },
     shy: { x: 528, y: 52, width: 450, height: 400, keepComponents: 3 },
@@ -32,14 +32,14 @@
     cheeky: { x: 1018, y: 525, width: 450, height: 395 },
   };
   const SOUND_ASSETS = {
-    touch: ["./assets/audio/touch-1.wav"],
-    bump: ["./assets/audio/bump-1.wav", "./assets/audio/bump-2.wav", "./assets/audio/bump-3.wav", "./assets/audio/bump-4.wav", "./assets/audio/bump-5.wav"],
-    whoosh: ["./assets/audio/whoosh.wav"],
-    appear: ["./assets/audio/appear.wav"],
-    pop: ["./assets/audio/pop.wav"],
-    magic: ["./assets/audio/magic.wav"],
-    bubble: ["./assets/audio/bubble.wav"],
-    moon: ["./assets/audio/moon.wav"],
+    touch: ["./assets/audio/touch-1.wav?v=15"],
+    bump: ["./assets/audio/bump-1.wav?v=15", "./assets/audio/bump-2.wav?v=15", "./assets/audio/bump-3.wav?v=15", "./assets/audio/bump-4.wav?v=15", "./assets/audio/bump-5.wav?v=15"],
+    whoosh: ["./assets/audio/whoosh.wav?v=15"],
+    appear: ["./assets/audio/appear.wav?v=15"],
+    pop: ["./assets/audio/pop.wav?v=15"],
+    magic: ["./assets/audio/magic.wav?v=15"],
+    bubble: ["./assets/audio/bubble.wav?v=15"],
+    moon: ["./assets/audio/moon.wav?v=15"],
   };
   const SOUND_LEVELS = {
     touch: 0.16,
@@ -65,7 +65,7 @@
   const lastSoundTimes = new Map();
   const backgroundMusic = new Audio(BGM_ASSET);
   backgroundMusic.loop = true;
-  backgroundMusic.preload = "auto";
+  backgroundMusic.preload = "none";
   backgroundMusic.volume = 0.28;
   backgroundMusic.setAttribute("playsinline", "");
   let width = 0;
