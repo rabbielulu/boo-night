@@ -30,6 +30,41 @@
     sleepy: { x: 528, y: 525, width: 450, height: 395 },
     cheeky: { x: 1018, y: 525, width: 450, height: 395 },
   };
+  const SOUND_ASSETS = {
+    touch: ["./assets/audio/touch-1.wav", "./assets/audio/touch-2.wav"],
+    shy: ["./assets/audio/shy.wav"],
+    bump: ["./assets/audio/bump-1.wav", "./assets/audio/bump-2.wav"],
+    whoosh: ["./assets/audio/whoosh.wav"],
+    appear: ["./assets/audio/appear.wav"],
+    pop: ["./assets/audio/pop.wav"],
+    magic: ["./assets/audio/magic.wav"],
+    bubble: ["./assets/audio/bubble.wav"],
+    moon: ["./assets/audio/moon.wav"],
+  };
+  const SOUND_LEVELS = {
+    touch: 0.16,
+    shy: 0.14,
+    bump: 0.09,
+    whoosh: 0.11,
+    appear: 0.14,
+    pop: 0.14,
+    magic: 0.13,
+    bubble: 0.13,
+    moon: 0.11,
+  };
+  const SOUND_COOLDOWNS = {
+    touch: 45,
+    shy: 120,
+    bump: 90,
+    whoosh: 180,
+    appear: 120,
+    pop: 120,
+    magic: 180,
+    bubble: 180,
+    moon: 180,
+  };
+  const soundBuffers = new Map();
+  const lastSoundTimes = new Map();
   let width = 0;
   let height = 0;
   let dpr = 1;
@@ -41,6 +76,7 @@
   let playStartedAt = Date.now();
   let restMinutes = Number(localStorage.getItem("boo-rest") ?? 10);
   let audioContext = null;
+  let soundLoadPromise = null;
   let parentHoldTimer = 0;
   let toastTimer = 0;
   let magicIndex = 0;
@@ -969,17 +1005,65 @@
       motionPermissionRequested = false;
     }
   }
+
+  function loadSoundAssets() {
+    if (!audioContext || soundLoadPromise) return soundLoadPromise;
+    const urls = [...new Set(Object.values(SOUND_ASSETS).flat())];
+    document.documentElement.dataset.soundAssets = "loading";
+    soundLoadPromise = Promise.all(urls.map(async (url) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Unable to load ${url}`);
+        const bytes = await response.arrayBuffer();
+        const buffer = await new Promise((resolve, reject) => {
+          audioContext.decodeAudioData(bytes, resolve, reject);
+        });
+        soundBuffers.set(url, buffer);
+        return true;
+      } catch {
+        return false;
+      }
+    })).then((results) => {
+      document.documentElement.dataset.soundAssets = results.every(Boolean) ? "ready" : "partial";
+      return results;
+    });
+    return soundLoadPromise;
+  }
+
   function ensureAudio() {
-    if (!soundOn || audioContext) return;
+    if (!soundOn) return;
     const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (AudioContext) audioContext = new AudioContext();
+    if (!audioContext && navigator.userActivation && !navigator.userActivation.isActive) return;
+    if (!audioContext && AudioContext) audioContext = new AudioContext();
+    if (!audioContext) return;
+    if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
+    loadSoundAssets();
+  }
+
+  function playBufferedSound(kind, size, now) {
+    const candidates = (SOUND_ASSETS[kind] || []).filter((url) => soundBuffers.has(url));
+    if (!candidates.length) return false;
+    const url = candidates[Math.floor(Math.random() * candidates.length)];
+    const source = audioContext.createBufferSource();
+    const gain = audioContext.createGain();
+    source.buffer = soundBuffers.get(url);
+    const pitchScale = clamp(95 / size, 0.88, 1.12) * random(0.97, 1.03);
+    source.playbackRate.setValueAtTime(pitchScale, now);
+    gain.gain.setValueAtTime(SOUND_LEVELS[kind] ?? 0.12, now);
+    source.connect(gain).connect(audioContext.destination);
+    source.start(now);
+    return true;
   }
 
   function playSound(kind, size = 90) {
     if (!soundOn) return;
+    const nowMs = performance.now();
+    if (nowMs - (lastSoundTimes.get(kind) ?? -Infinity) < (SOUND_COOLDOWNS[kind] ?? 60)) return;
+    lastSoundTimes.set(kind, nowMs);
     ensureAudio();
     if (!audioContext) return;
     const now = audioContext.currentTime;
+    if (playBufferedSound(kind, size, now)) return;
     const gain = audioContext.createGain();
     const oscillator = audioContext.createOscillator();
     const pitchScale = clamp(95 / size, 0.62, 1.7);
@@ -1014,6 +1098,8 @@
     if (soundOn) {
       ensureAudio();
       playSound("appear");
+    } else if (audioContext?.state === "running") {
+      audioContext.suspend().catch(() => {});
     }
   }
 

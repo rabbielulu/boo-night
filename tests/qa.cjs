@@ -112,12 +112,28 @@ async function assertControlsInViewport(page) {
     isMobile: true,
     hasTouch: true,
   });
+  await page.addInitScript(() => {
+    window.__bufferSourceStarts = 0;
+    window.__audioSuspends = 0;
+    if (globalThis.AudioContext) {
+      const createBufferSource = AudioContext.prototype.createBufferSource;
+      AudioContext.prototype.createBufferSource = function createTrackedBufferSource(...args) {
+        window.__bufferSourceStarts += 1;
+        return createBufferSource.apply(this, args);
+      };
+      const suspend = AudioContext.prototype.suspend;
+      AudioContext.prototype.suspend = function suspendTrackedContext(...args) {
+        window.__audioSuspends += 1;
+        return suspend.apply(this, args);
+      };
+    }
+  });
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
   page.on("pageerror", (error) => errors.push(error.message));
 
-  await page.goto("http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await page.goto(process.env.TEST_URL ?? "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await page.waitForFunction(() => navigator.serviceWorker?.controller);
   await page.waitForFunction(() => document.querySelector("#sleepGhost")?.classList.contains("ready"));
   await page.waitForTimeout(1000);
@@ -127,7 +143,7 @@ async function assertControlsInViewport(page) {
   if (sleepGhost.visible < 5000 || sleepGhost.transparent < 5000 || sleepGhost.green > 20) {
     throw new Error(`Sleeping ghost chroma key failed: ${JSON.stringify(sleepGhost)}`);
   }
-  const appSource = await page.evaluate(() => fetch("app.js?v=8").then((response) => response.text()));
+  const appSource = await page.evaluate(() => fetch("app.js?v=9").then((response) => response.text()));
   for (const marker of [
     "const count = width < 500 ? 3 : 4;",
     "for (let i = 0; i < 12; i += 1)",
@@ -137,6 +153,9 @@ async function assertControlsInViewport(page) {
     "{ popIn: true }",
     "ghost.dizzyUntil = now + 3000",
     "window.addEventListener(\"devicemotion\", handleDeviceMotion)",
+    "const SOUND_ASSETS = {",
+    "playBufferedSound(kind, size, now)",
+    "navigator.userActivation",
   ]) {
     if (!appSource.includes(marker)) throw new Error(`Missing iteration marker: ${marker}`);
   }
@@ -159,9 +178,17 @@ async function assertControlsInViewport(page) {
   if (!(await page.locator("#moonButton").getAttribute("class")).includes("active")) {
     throw new Error("Moon mode did not activate");
   }
+  await page.waitForFunction(() => document.documentElement.dataset.soundAssets === "ready", null, { timeout: 10000 });
+  const soundAssetState = await page.evaluate(() => document.documentElement.dataset.soundAssets);
+  const bufferedSourcesBeforeMagic = await page.evaluate(() => window.__bufferSourceStarts);
 
   await page.locator("#magicButton").tap();
   if (!(await page.locator("#toast").textContent())) throw new Error("Magic event did not run");
+  await page.waitForTimeout(120);
+  const bufferedSourcesAfterMagic = await page.evaluate(() => window.__bufferSourceStarts);
+  if (bufferedSourcesAfterMagic <= bufferedSourcesBeforeMagic) {
+    throw new Error(`Buffered magic sound did not play: ${bufferedSourcesBeforeMagic} -> ${bufferedSourcesAfterMagic}`);
+  }
   await page.waitForTimeout(5000);
   const bubblePixelsNearTop = await countMagicPixels(page, [0, 0.38], "bubble");
   if (bubblePixelsNearTop < 40) throw new Error(`Bubbles did not reach the upper screen: ${bubblePixelsNearTop}`);
@@ -177,8 +204,11 @@ async function assertControlsInViewport(page) {
   }
 
   await page.locator("#magicButton").tap();
-  await page.waitForTimeout(4500);
-  const starPixelsNearBottom = await countMagicPixels(page, [0.78, 1], "star");
+  let starPixelsNearBottom = 0;
+  for (let sample = 0; sample < 15; sample += 1) {
+    await page.waitForTimeout(300);
+    starPixelsNearBottom = Math.max(starPixelsNearBottom, await countMagicPixels(page, [0.78, 1], "star"));
+  }
   if (starPixelsNearBottom < 30) throw new Error(`Falling stars did not reach the bottom: ${starPixelsNearBottom}`);
 
   await triggerSyntheticShake(page);
@@ -189,6 +219,13 @@ async function assertControlsInViewport(page) {
   if (await page.evaluate(() => document.documentElement.classList.contains("ghosts-dizzy"))) {
     throw new Error("Dizzy state lasted longer than expected");
   }
+
+  const audioSuspendsBeforeToggle = await page.evaluate(() => window.__audioSuspends);
+  await page.locator("#soundButton").tap();
+  await page.waitForTimeout(100);
+  const audioSuspendsAfterToggle = await page.evaluate(() => window.__audioSuspends);
+  if (audioSuspendsAfterToggle <= audioSuspendsBeforeToggle) throw new Error("Sound toggle did not suspend audio");
+  await page.locator("#soundButton").tap();
 
   await page.touchscreen.tap(195, 370);
   await page.mouse.move(195, 370);
@@ -224,6 +261,11 @@ async function assertControlsInViewport(page) {
     brightPixelsAfterGiant,
     starPixelsNearBottom,
     dizzyToast,
+    soundAssetState,
+    bufferedSourcesBeforeMagic,
+    bufferedSourcesAfterMagic,
+    audioSuspendsBeforeToggle,
+    audioSuspendsAfterToggle,
     portraitControls,
     sleepLayout,
     landscapeCanvas,

@@ -1,9 +1,9 @@
-const CACHE_NAME = "boo-night-v8";
+const CACHE_NAME = "boo-night-v9";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
-  "./app.js?v=8",
+  "./app.js?v=9",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-180.png",
@@ -11,6 +11,17 @@ const APP_SHELL = [
   "./icon-512.png",
   "./assets/ghosts/expression-sheet.png",
   "./assets/ghosts/sleeping.png",
+  "./assets/audio/touch-1.wav",
+  "./assets/audio/touch-2.wav",
+  "./assets/audio/shy.wav",
+  "./assets/audio/bump-1.wav",
+  "./assets/audio/bump-2.wav",
+  "./assets/audio/whoosh.wav",
+  "./assets/audio/appear.wav",
+  "./assets/audio/pop.wav",
+  "./assets/audio/magic.wav",
+  "./assets/audio/bubble.wav",
+  "./assets/audio/moon.wav",
 ];
 
 self.addEventListener("install", (event) => {

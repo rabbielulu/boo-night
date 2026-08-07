@@ -12,7 +12,7 @@ const { chromium } = require("playwright");
     isMobile: true,
     hasTouch: true,
   });
-  await page.goto("http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await page.goto(process.env.TEST_URL ?? "http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await page.waitForTimeout(1800);
 
   const metrics = await page.locator("#world").evaluate((canvas) => {

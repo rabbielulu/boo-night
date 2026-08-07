@@ -1,0 +1,11 @@
+Kenney audio assets
+
+Selected from:
+- Interface Sounds: https://kenney.nl/assets/interface-sounds
+- Impact Sounds: https://www.kenney.nl/assets/impact-sounds
+
+License: Creative Commons Zero (CC0 1.0)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+These assets may be used in personal, educational, and commercial projects.
+Credit to Kenney (https://www.kenney.nl/) is appreciated but not required.
