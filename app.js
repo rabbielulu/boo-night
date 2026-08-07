@@ -165,6 +165,27 @@
       if (!keep[pixelIndex]) data[pixelIndex * 4 + 3] = 0;
     }
 
+    for (let pixelIndex = 0; pixelIndex < pixelCount; pixelIndex += 1) {
+      const offset = pixelIndex * 4;
+      if (data[offset + 3] === 0) continue;
+      const red = data[offset];
+      const green = data[offset + 1];
+      const blue = data[offset + 2];
+      const brightness = (red + green + blue) / 3;
+      const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
+      if (brightness < 105 && chroma < 48) {
+        data[offset] = 52;
+        data[offset + 1] = 64;
+        data[offset + 2] = 88;
+      } else if (brightness > 220 && chroma < 36) {
+        const softWhite = Math.round(214 + ((brightness - 220) / 35) * 20);
+        data[offset] = softWhite;
+        data[offset + 1] = softWhite + 3;
+        data[offset + 2] = Math.min(242, softWhite + 7);
+      }
+    }
+
+
     surfaceContext.putImageData(pixels, 0, 0);
     return surface;
   }
@@ -367,8 +388,8 @@
       ctx.rotate(this.spin);
       ctx.scale(this.direction * squeezeX, squeezeY);
 
-      ctx.shadowColor = lightOn ? "rgba(255,241,166,.58)" : "rgba(164,190,255,.28)";
-      ctx.shadowBlur = s * 0.24;
+      ctx.shadowColor = lightOn ? "rgba(238,225,171,.28)" : "rgba(190,204,226,.18)";
+      ctx.shadowBlur = s * 0.16;
       const speed = Math.hypot(this.vx, this.vy);
       const sleepyMoment = Math.sin(worldTime * 0.42 + this.phase) > 0.93;
       const spriteKey = shy
@@ -419,15 +440,15 @@
 
   function drawBackground() {
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, lightOn ? "#273166" : "#080817");
-    gradient.addColorStop(0.62, lightOn ? "#171c47" : "#111434");
-    gradient.addColorStop(1, "#19152d");
+    gradient.addColorStop(0, lightOn ? "#52617b" : "#3b4862");
+    gradient.addColorStop(0.62, lightOn ? "#6d7b91" : "#59677e");
+    gradient.addColorStop(1, lightOn ? "#8993a4" : "#748094");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 
     for (const star of stars) {
-      const alpha = 0.38 + Math.sin(worldTime * star.speed + star.phase) * 0.3;
-      ctx.fillStyle = `rgba(255, 244, 190, ${alpha})`;
+      const alpha = 0.18 + Math.sin(worldTime * star.speed + star.phase) * 0.1;
+      ctx.fillStyle = `rgba(231, 230, 211, ${alpha})`;
       ctx.beginPath();
       ctx.arc(star.x * width, star.y * height, star.size, 0, TAU);
       ctx.fill();
@@ -449,7 +470,7 @@
       ctx.restore();
     });
 
-    ctx.fillStyle = "#101126";
+    ctx.fillStyle = "#4b5368";
     ctx.beginPath();
     ctx.moveTo(0, height);
     ctx.lineTo(0, height * 0.87);
@@ -462,9 +483,9 @@
 
     if (lightOn) {
       const beam = ctx.createRadialGradient(spotlight.x, spotlight.y, 12, spotlight.x, spotlight.y, Math.max(width, height) * 0.48);
-      beam.addColorStop(0, "rgba(255,246,190,.26)");
-      beam.addColorStop(0.55, "rgba(255,237,150,.09)");
-      beam.addColorStop(1, "rgba(255,233,130,0)");
+      beam.addColorStop(0, "rgba(240,231,190,.18)");
+      beam.addColorStop(0.55, "rgba(232,221,175,.06)");
+      beam.addColorStop(1, "rgba(232,221,175,0)");
       ctx.fillStyle = beam;
       ctx.fillRect(0, 0, width, height);
     }

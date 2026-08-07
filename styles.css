@@ -1,7 +1,7 @@
 :root {
   color-scheme: dark;
   font-family: ui-rounded, "SF Pro Rounded", "PingFang SC", "Microsoft YaHei", sans-serif;
-  background: #080817;
+  background: #3b4862;
   touch-action: none;
 }
 
@@ -21,7 +21,7 @@ body,
 }
 
 body {
-  background: #080817;
+  background: #3b4862;
   user-select: none;
   -webkit-user-select: none;
 }

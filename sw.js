@@ -1,9 +1,9 @@
-const CACHE_NAME = "boo-night-v5";
+const CACHE_NAME = "boo-night-v6";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
-  "./app.js?v=5",
+  "./app.js?v=6",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-180.png",
