@@ -159,7 +159,7 @@ async function assertControlsInViewport(page) {
   if (sleepGhost.visible < 5000 || sleepGhost.transparent < 5000 || sleepGhost.green > 20) {
     throw new Error(`Sleeping ghost chroma key failed: ${JSON.stringify(sleepGhost)}`);
   }
-  const appSource = await page.evaluate(() => fetch("app.js?v=12").then((response) => response.text()));
+  const appSource = await page.evaluate(() => fetch("app.js?v=13").then((response) => response.text()));
   for (const marker of [
     "const count = width < 500 ? 3 : 4;",
     "for (let i = 0; i < 12; i += 1)",
@@ -172,12 +172,16 @@ async function assertControlsInViewport(page) {
     "const SOUND_ASSETS = {",
     "bump-5.wav",
     "playBufferedSound(kind, size, now)",
+    "pendingTouchSound",
     "navigator.userActivation",
     "const BGM_ASSET =",
     "backgroundMusic.loop = true",
     "syncBackgroundMusic()",
   ]) {
     if (!appSource.includes(marker)) throw new Error(`Missing iteration marker: ${marker}`);
+  }
+  if (appSource.includes("touch: [260, 340, 0.08")) {
+    throw new Error("Legacy synthesized touch sound is still present");
   }
   const portraitControls = await assertControlsInViewport(page);
   await page.locator("#sleepCurtain").evaluate((element) => { element.hidden = false; });

@@ -83,6 +83,7 @@
   let restMinutes = Number(localStorage.getItem("boo-rest") ?? 10);
   let audioContext = null;
   let soundLoadPromise = null;
+  let pendingTouchSound = null;
   let parentHoldTimer = 0;
   let toastTimer = 0;
   let magicIndex = 0;
@@ -1092,11 +1093,21 @@
     if (!audioContext) return;
     const now = audioContext.currentTime;
     if (playBufferedSound(kind, size, now)) return;
+    if (kind === "touch") {
+      const pending = { size, requestedAt: nowMs };
+      pendingTouchSound = pending;
+      soundLoadPromise?.then(() => {
+        if (pendingTouchSound !== pending) return;
+        pendingTouchSound = null;
+        if (!soundOn || !audioContext || performance.now() - pending.requestedAt > 800) return;
+        playBufferedSound("touch", pending.size, audioContext.currentTime);
+      });
+      return;
+    }
     const gain = audioContext.createGain();
     const oscillator = audioContext.createOscillator();
     const pitchScale = clamp(95 / size, 0.62, 1.7);
     const presets = {
-      touch: [260, 340, 0.08, "sine"],
       shy: [430, 280, 0.15, "triangle"],
       bump: [170, 130, 0.05, "sine"],
       whoosh: [190, 90, 0.12, "sine"],
@@ -1106,7 +1117,7 @@
       bubble: [480, 720, 0.24, "sine"],
       moon: [300, 460, 0.28, "sine"],
     };
-    const preset = presets[kind] || presets.touch;
+    const preset = presets[kind] || presets.appear;
     oscillator.type = preset[3];
     oscillator.frequency.setValueAtTime(preset[0] * pitchScale, now);
     oscillator.frequency.exponentialRampToValueAtTime(Math.max(45, preset[1] * pitchScale), now + preset[2]);
