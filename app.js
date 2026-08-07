@@ -22,7 +22,7 @@
   const GHOST_SPRITE_ATLAS = "./assets/ghosts/expression-sheet.png";
   const GHOST_SPRITE_FRAMES = {
     laugh: { x: 42, y: 52, width: 440, height: 400 },
-    shy: { x: 528, y: 52, width: 450, height: 400 },
+    shy: { x: 528, y: 52, width: 450, height: 400, keepComponents: 3 },
     surprised: { x: 1018, y: 52, width: 450, height: 400 },
     spinning: { x: 42, y: 525, width: 440, height: 395 },
     sleepy: { x: 528, y: 525, width: 450, height: 395 },
@@ -96,7 +96,8 @@
       const red = data[from] - data[to];
       const green = data[from + 1] - data[to + 1];
       const blue = data[from + 2] - data[to + 2];
-      return red * red + green * green + blue * blue < 900;
+      const targetBrightness = (data[to] + data[to + 1] + data[to + 2]) / 3;
+      return targetBrightness < 185 && red * red + green * green + blue * blue < 900;
     };
 
     const tryBackgroundNeighbor = (pixelIndex, neighbor) => {
@@ -119,7 +120,7 @@
     }
 
     const visited = new Uint8Array(pixelCount);
-    let largestComponent = [];
+    const components = [];
     for (let start = 0; start < pixelCount; start += 1) {
       if (visited[start] || data[start * 4 + 3] === 0) continue;
       const component = [];
@@ -148,13 +149,18 @@
         if (y > 0) enqueueComponent(pixelIndex - surface.width);
         if (y < surface.height - 1) enqueueComponent(pixelIndex + surface.width);
       }
-      if (component.length > largestComponent.length) largestComponent = component;
+      components.push(component);
     }
 
     const keep = new Uint8Array(pixelCount);
-    largestComponent.forEach((pixelIndex) => {
-      keep[pixelIndex] = 1;
-    });
+    components
+      .sort((first, second) => second.length - first.length)
+      .slice(0, frame.keepComponents ?? 1)
+      .forEach((component) => {
+        component.forEach((pixelIndex) => {
+          keep[pixelIndex] = 1;
+        });
+      });
     for (let pixelIndex = 0; pixelIndex < pixelCount; pixelIndex += 1) {
       if (!keep[pixelIndex]) data[pixelIndex * 4 + 3] = 0;
     }
@@ -377,53 +383,14 @@
                 ? "sleepy"
                 : "laugh";
       const sprite = ghostSprites.get(spriteKey);
-      if (sprite) {
-        const spriteSize = s * 1.48;
-        ctx.drawImage(sprite, -spriteSize * 0.5, -spriteSize * 0.5, spriteSize, spriteSize);
-        ctx.shadowBlur = 0;
-        if (this.popArmed) {
-          ctx.fillStyle = `rgba(255, 226, 105, ${0.45 + Math.sin(worldTime * 10) * 0.3})`;
-          for (let i = 0; i < 4; i += 1) {
-            const angle = worldTime * 1.8 + i * TAU / 4;
-            starPath(Math.cos(angle) * s * 0.68, Math.sin(angle) * s * 0.6, s * 0.055, 0.45);
-            ctx.fill();
-          }
-        }
+      if (!sprite) {
         ctx.restore();
         return;
       }
 
-      const bodyGradient = ctx.createRadialGradient(-s * 0.17, -s * 0.28, s * 0.05, 0, 0, s * 0.72);
-      bodyGradient.addColorStop(0, "#ffffff");
-      bodyGradient.addColorStop(0.58, this.variant === 2 ? "#eef3ff" : "#f6f7ff");
-      bodyGradient.addColorStop(1, this.variant === 1 ? "#bcc9ed" : "#c9d2ee");
-      ctx.fillStyle = bodyGradient;
-      ctx.strokeStyle = "#66719d";
-      ctx.lineWidth = Math.max(2, s * 0.018);
-      ctx.lineJoin = "round";
-
-      ctx.beginPath();
-      ctx.moveTo(-s * 0.36, s * 0.28);
-      ctx.bezierCurveTo(-s * 0.58, s * 0.13, -s * 0.56, -s * 0.21, -s * 0.34, -s * 0.4);
-      ctx.bezierCurveTo(-s * 0.13, -s * 0.59, s * 0.25, -s * 0.54, s * 0.43, -s * 0.3);
-      ctx.bezierCurveTo(s * 0.58, -s * 0.1, s * 0.48, s * 0.2, s * 0.34, s * 0.31);
-      ctx.quadraticCurveTo(s * 0.25, s * 0.44, s * 0.14, s * 0.32);
-      ctx.quadraticCurveTo(0, s * 0.53, -s * 0.14, s * 0.32);
-      ctx.quadraticCurveTo(-s * 0.26, s * 0.47, -s * 0.36, s * 0.28);
-      ctx.closePath();
-      ctx.fill();
+      const spriteSize = s * 1.48;
+      ctx.drawImage(sprite, -spriteSize * 0.5, -spriteSize * 0.5, spriteSize, spriteSize);
       ctx.shadowBlur = 0;
-      ctx.stroke();
-
-      drawArm(-1, shy, s);
-      drawArm(1, shy, s);
-
-      if (shy) {
-        drawShyFace(s, this.blush);
-      } else {
-        drawFace(s, this.eyeTargetX, this.eyeTargetY, this.blinkAmount, this.blush, this.heldBy !== null);
-      }
-
       if (this.popArmed) {
         ctx.fillStyle = `rgba(255, 226, 105, ${0.45 + Math.sin(worldTime * 10) * 0.3})`;
         for (let i = 0; i < 4; i += 1) {
@@ -434,87 +401,6 @@
       }
       ctx.restore();
     }
-  }
-
-  function drawArm(side, shy, s) {
-    ctx.save();
-    ctx.scale(side, 1);
-    ctx.fillStyle = "#eef2ff";
-    ctx.strokeStyle = "#66719d";
-    ctx.lineWidth = Math.max(2, s * 0.018);
-    ctx.beginPath();
-    if (shy) {
-      ctx.moveTo(s * 0.33, -s * 0.06);
-      ctx.quadraticCurveTo(s * 0.14, -s * 0.28, s * 0.02, -s * 0.14);
-      ctx.quadraticCurveTo(s * 0.13, s * 0.03, s * 0.37, s * 0.13);
-    } else {
-      ctx.moveTo(s * 0.39, -s * 0.09);
-      ctx.quadraticCurveTo(s * 0.66, -s * 0.02, s * 0.58, s * 0.13);
-      ctx.quadraticCurveTo(s * 0.47, s * 0.2, s * 0.31, s * 0.1);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawFace(s, eyeX, eyeY, blink, blush, excited) {
-    const eyeHeight = Math.max(0.05, 1 - blink) * s * 0.19;
-    ctx.fillStyle = "#33344d";
-    for (const side of [-1, 1]) {
-      ctx.beginPath();
-      ctx.ellipse(side * s * 0.17 + eyeX * s, -s * 0.13 + eyeY * s, s * 0.065, eyeHeight, 0, 0, TAU);
-      ctx.fill();
-      if (eyeHeight > s * 0.08) {
-        ctx.fillStyle = "#ffffff";
-        ctx.beginPath();
-        ctx.arc(side * s * 0.19 + eyeX * s, -s * 0.2 + eyeY * s, s * 0.019, 0, TAU);
-        ctx.fill();
-        ctx.fillStyle = "#33344d";
-      }
-    }
-
-    ctx.fillStyle = "#692f45";
-    ctx.beginPath();
-    if (excited) {
-      ctx.ellipse(0, s * 0.1, s * 0.13, s * 0.14, 0, 0, TAU);
-    } else {
-      ctx.ellipse(0, s * 0.11, s * 0.13, s * 0.1, 0, 0, TAU);
-    }
-    ctx.fill();
-    ctx.fillStyle = "#ef7180";
-    ctx.beginPath();
-    ctx.ellipse(0, s * 0.16, s * 0.075, s * 0.037, 0, 0, Math.PI);
-    ctx.fill();
-
-    if (blush > 0.03) {
-      ctx.fillStyle = `rgba(255, 112, 137, ${blush * 0.62})`;
-      ctx.beginPath();
-      ctx.ellipse(-s * 0.3, s * 0.04, s * 0.09, s * 0.04, 0, 0, TAU);
-      ctx.ellipse(s * 0.3, s * 0.04, s * 0.09, s * 0.04, 0, 0, TAU);
-      ctx.fill();
-    }
-  }
-
-  function drawShyFace(s, blush) {
-    ctx.strokeStyle = "#33344d";
-    ctx.lineWidth = Math.max(2.5, s * 0.026);
-    ctx.lineCap = "round";
-    for (const side of [-1, 1]) {
-      ctx.beginPath();
-      ctx.arc(side * s * 0.17, -s * 0.1, s * 0.07, 0.2, Math.PI - 0.2);
-      ctx.stroke();
-    }
-    ctx.fillStyle = `rgba(255, 112, 137, ${0.48 + blush * 0.3})`;
-    ctx.beginPath();
-    ctx.ellipse(-s * 0.28, s * 0.04, s * 0.08, s * 0.037, 0, 0, TAU);
-    ctx.ellipse(s * 0.28, s * 0.04, s * 0.08, s * 0.037, 0, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = "#69334d";
-    ctx.lineWidth = Math.max(2, s * 0.018);
-    ctx.beginPath();
-    ctx.arc(0, s * 0.13, s * 0.05, 0.08, Math.PI - 0.08);
-    ctx.stroke();
   }
 
   function createGhosts() {
