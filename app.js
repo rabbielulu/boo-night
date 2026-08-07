@@ -33,7 +33,6 @@
   };
   const SOUND_ASSETS = {
     touch: ["./assets/audio/touch-1.wav"],
-    shy: ["./assets/audio/shy.wav"],
     bump: ["./assets/audio/bump-1.wav", "./assets/audio/bump-2.wav", "./assets/audio/bump-3.wav", "./assets/audio/bump-4.wav", "./assets/audio/bump-5.wav"],
     whoosh: ["./assets/audio/whoosh.wav"],
     appear: ["./assets/audio/appear.wav"],
@@ -44,7 +43,6 @@
   };
   const SOUND_LEVELS = {
     touch: 0.16,
-    shy: 0.14,
     bump: 0.09,
     whoosh: 0.11,
     appear: 0.14,
@@ -55,7 +53,6 @@
   };
   const SOUND_COOLDOWNS = {
     touch: 45,
-    shy: 120,
     bump: 90,
     whoosh: 180,
     appear: 120,
@@ -403,7 +400,6 @@
       this.vx *= 0.45;
       this.vy *= 0.45;
       burst(this.x, this.y - this.size * 0.15, 5, "heart");
-      playSound("shy", this.size);
     }
 
     update(dt, now) {
@@ -1108,7 +1104,6 @@
     const oscillator = audioContext.createOscillator();
     const pitchScale = clamp(95 / size, 0.62, 1.7);
     const presets = {
-      shy: [430, 280, 0.15, "triangle"],
       bump: [170, 130, 0.05, "sine"],
       whoosh: [190, 90, 0.12, "sine"],
       appear: [330, 610, 0.18, "sine"],
