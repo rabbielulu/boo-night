@@ -1,9 +1,9 @@
-const CACHE_NAME = "boo-night-v11";
+const CACHE_NAME = "boo-night-v12";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
-  "./app.js?v=11",
+  "./app.js?v=12",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-180.png",
@@ -12,10 +12,12 @@ const APP_SHELL = [
   "./assets/ghosts/expression-sheet.png",
   "./assets/ghosts/sleeping.png",
   "./assets/audio/touch-1.wav",
-  "./assets/audio/touch-2.wav",
   "./assets/audio/shy.wav",
   "./assets/audio/bump-1.wav",
   "./assets/audio/bump-2.wav",
+  "./assets/audio/bump-3.wav",
+  "./assets/audio/bump-4.wav",
+  "./assets/audio/bump-5.wav",
   "./assets/audio/whoosh.wav",
   "./assets/audio/appear.wav",
   "./assets/audio/pop.wav",

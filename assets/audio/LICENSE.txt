@@ -14,7 +14,11 @@ Hello, Mario! replacements
 
 The following files were replaced from the user-provided Hello, Mario!
 sound-effects library and are not covered by the Kenney CC0 license:
-- touch-1.wav: WU_SE_EMY_TERESA.wav
-- touch-2.wav: WU_SE_EMY_TERESA_STOP.wav
+- touch-1.wav: SE_FaceItemDrop.wav
+- bump-1.wav: SE_FaceBoundWallBig1.wav
+- bump-2.wav: SE_FaceBoundWallBig2.wav
+- bump-3.wav: SE_FaceBoundWallBig3.wav
+- bump-4.wav: SE_FaceBoundWallBig4.wav
+- bump-5.wav: SE_FaceBoundWallBig5.wav
 - magic.wav: SE_FaceTwinkle.wav
 - Ground BGM.mp3: user-provided background music

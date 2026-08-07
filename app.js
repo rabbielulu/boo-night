@@ -32,9 +32,9 @@
     cheeky: { x: 1018, y: 525, width: 450, height: 395 },
   };
   const SOUND_ASSETS = {
-    touch: ["./assets/audio/touch-1.wav", "./assets/audio/touch-2.wav"],
+    touch: ["./assets/audio/touch-1.wav"],
     shy: ["./assets/audio/shy.wav"],
-    bump: ["./assets/audio/bump-1.wav", "./assets/audio/bump-2.wav"],
+    bump: ["./assets/audio/bump-1.wav", "./assets/audio/bump-2.wav", "./assets/audio/bump-3.wav", "./assets/audio/bump-4.wav", "./assets/audio/bump-5.wav"],
     whoosh: ["./assets/audio/whoosh.wav"],
     appear: ["./assets/audio/appear.wav"],
     pop: ["./assets/audio/pop.wav"],
