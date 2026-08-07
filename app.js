@@ -22,6 +22,7 @@
   const ghostSprites = new Map();
   const GHOST_SPRITE_ATLAS = "./assets/ghosts/expression-sheet.png";
   const SLEEP_GHOST_ASSET = "./assets/ghosts/sleeping.png";
+  const BGM_ASSET = "./assets/audio/Ground%20BGM.mp3";
   const GHOST_SPRITE_FRAMES = {
     laugh: { x: 42, y: 52, width: 440, height: 400 },
     shy: { x: 528, y: 52, width: 450, height: 400, keepComponents: 3 },
@@ -65,6 +66,11 @@
   };
   const soundBuffers = new Map();
   const lastSoundTimes = new Map();
+  const backgroundMusic = new Audio(BGM_ASSET);
+  backgroundMusic.loop = true;
+  backgroundMusic.preload = "auto";
+  backgroundMusic.volume = 0.28;
+  backgroundMusic.setAttribute("playsinline", "");
   let width = 0;
   let height = 0;
   let dpr = 1;
@@ -1032,12 +1038,34 @@
 
   function ensureAudio() {
     if (!soundOn) return;
+    syncBackgroundMusic();
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!audioContext && navigator.userActivation && !navigator.userActivation.isActive) return;
     if (!audioContext && AudioContext) audioContext = new AudioContext();
     if (!audioContext) return;
     if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
     loadSoundAssets();
+  }
+
+  function syncBackgroundMusic() {
+    if (!soundOn || document.hidden) {
+      backgroundMusic.pause();
+      document.documentElement.dataset.bgm = soundOn ? "paused" : "muted";
+      return;
+    }
+    if (!backgroundMusic.paused) {
+      document.documentElement.dataset.bgm = "playing";
+      return;
+    }
+    const playPromise = backgroundMusic.play();
+    if (!playPromise) return;
+    playPromise
+      .then(() => {
+        document.documentElement.dataset.bgm = "playing";
+      })
+      .catch(() => {
+        document.documentElement.dataset.bgm = "blocked";
+      });
   }
 
   function playBufferedSound(kind, size, now) {
@@ -1098,8 +1126,9 @@
     if (soundOn) {
       ensureAudio();
       playSound("appear");
-    } else if (audioContext?.state === "running") {
-      audioContext.suspend().catch(() => {});
+    } else {
+      syncBackgroundMusic();
+      if (audioContext?.state === "running") audioContext.suspend().catch(() => {});
     }
   }
 
@@ -1205,6 +1234,7 @@
   window.addEventListener("resize", resize);
   document.addEventListener("visibilitychange", () => {
     lastTime = performance.now();
+    syncBackgroundMusic();
   });
 
   soundButton.classList.toggle("muted", !soundOn);

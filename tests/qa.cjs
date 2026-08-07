@@ -115,6 +115,22 @@ async function assertControlsInViewport(page) {
   await page.addInitScript(() => {
     window.__bufferSourceStarts = 0;
     window.__audioSuspends = 0;
+    window.__bgmPlayCalls = 0;
+    window.__bgmPauseCalls = 0;
+    window.__bgmSnapshot = null;
+    const mediaPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function playTrackedMedia(...args) {
+      if (this.src.includes("Ground%20BGM.mp3")) {
+        window.__bgmPlayCalls += 1;
+        window.__bgmSnapshot = { loop: this.loop, volume: this.volume, src: this.src };
+      }
+      return mediaPlay.apply(this, args);
+    };
+    const mediaPause = HTMLMediaElement.prototype.pause;
+    HTMLMediaElement.prototype.pause = function pauseTrackedMedia(...args) {
+      if (this.src.includes("Ground%20BGM.mp3")) window.__bgmPauseCalls += 1;
+      return mediaPause.apply(this, args);
+    };
     if (globalThis.AudioContext) {
       const createBufferSource = AudioContext.prototype.createBufferSource;
       AudioContext.prototype.createBufferSource = function createTrackedBufferSource(...args) {
@@ -143,7 +159,7 @@ async function assertControlsInViewport(page) {
   if (sleepGhost.visible < 5000 || sleepGhost.transparent < 5000 || sleepGhost.green > 20) {
     throw new Error(`Sleeping ghost chroma key failed: ${JSON.stringify(sleepGhost)}`);
   }
-  const appSource = await page.evaluate(() => fetch("app.js?v=9").then((response) => response.text()));
+  const appSource = await page.evaluate(() => fetch("app.js?v=11").then((response) => response.text()));
   for (const marker of [
     "const count = width < 500 ? 3 : 4;",
     "for (let i = 0; i < 12; i += 1)",
@@ -156,6 +172,9 @@ async function assertControlsInViewport(page) {
     "const SOUND_ASSETS = {",
     "playBufferedSound(kind, size, now)",
     "navigator.userActivation",
+    "const BGM_ASSET =",
+    "backgroundMusic.loop = true",
+    "syncBackgroundMusic()",
   ]) {
     if (!appSource.includes(marker)) throw new Error(`Missing iteration marker: ${marker}`);
   }
@@ -180,6 +199,16 @@ async function assertControlsInViewport(page) {
   }
   await page.waitForFunction(() => document.documentElement.dataset.soundAssets === "ready", null, { timeout: 10000 });
   const soundAssetState = await page.evaluate(() => document.documentElement.dataset.soundAssets);
+  await page.waitForFunction(() => document.documentElement.dataset.bgm === "playing", null, { timeout: 10000 });
+  const bgmBeforeToggle = await page.evaluate(() => ({
+    state: document.documentElement.dataset.bgm,
+    playCalls: window.__bgmPlayCalls,
+    pauseCalls: window.__bgmPauseCalls,
+    snapshot: window.__bgmSnapshot,
+  }));
+  if (!bgmBeforeToggle.snapshot?.loop || Math.abs(bgmBeforeToggle.snapshot.volume - 0.28) > 0.001) {
+    throw new Error(`Background music configuration failed: ${JSON.stringify(bgmBeforeToggle)}`);
+  }
   const bufferedSourcesBeforeMagic = await page.evaluate(() => window.__bufferSourceStarts);
 
   await page.locator("#magicButton").tap();
@@ -223,9 +252,20 @@ async function assertControlsInViewport(page) {
   const audioSuspendsBeforeToggle = await page.evaluate(() => window.__audioSuspends);
   await page.locator("#soundButton").tap();
   await page.waitForTimeout(100);
-  const audioSuspendsAfterToggle = await page.evaluate(() => window.__audioSuspends);
-  if (audioSuspendsAfterToggle <= audioSuspendsBeforeToggle) throw new Error("Sound toggle did not suspend audio");
+  const mutedAudioState = await page.evaluate(() => ({
+    suspends: window.__audioSuspends,
+    bgmState: document.documentElement.dataset.bgm,
+    bgmPauseCalls: window.__bgmPauseCalls,
+  }));
+  if (mutedAudioState.suspends <= audioSuspendsBeforeToggle) throw new Error("Sound toggle did not suspend audio");
+  if (mutedAudioState.bgmState !== "muted" || mutedAudioState.bgmPauseCalls <= bgmBeforeToggle.pauseCalls) {
+    throw new Error(`Sound toggle did not pause background music: ${JSON.stringify(mutedAudioState)}`);
+  }
   await page.locator("#soundButton").tap();
+  await page.waitForFunction(() => document.documentElement.dataset.bgm === "playing");
+  const bgmPlayCallsAfterResume = await page.evaluate(() => window.__bgmPlayCalls);
+  if (bgmPlayCallsAfterResume <= bgmBeforeToggle.playCalls) throw new Error("Background music did not resume");
+  const audioSuspendsAfterToggle = mutedAudioState.suspends;
 
   await page.touchscreen.tap(195, 370);
   await page.mouse.move(195, 370);
@@ -262,6 +302,8 @@ async function assertControlsInViewport(page) {
     starPixelsNearBottom,
     dizzyToast,
     soundAssetState,
+    bgmBeforeToggle,
+    bgmPlayCallsAfterResume,
     bufferedSourcesBeforeMagic,
     bufferedSourcesAfterMagic,
     audioSuspendsBeforeToggle,
