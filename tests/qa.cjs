@@ -51,7 +51,8 @@ async function assertControlsInViewport(page) {
   page.on("pageerror", (error) => errors.push(error.message));
 
   await page.goto("http://127.0.0.1:4173", { waitUntil: "networkidle" });
-  await page.waitForTimeout(500);
+  await page.waitForFunction(() => navigator.serviceWorker?.controller);
+  await page.waitForTimeout(1000);
   const canvas = await inspectCanvas(page);
   if (canvas.uniqueSampleColors < 12) throw new Error(`Canvas looks blank: ${JSON.stringify(canvas)}`);
   const portraitControls = await assertControlsInViewport(page);
