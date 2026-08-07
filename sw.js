@@ -1,15 +1,16 @@
-const CACHE_NAME = "boo-night-v6";
+const CACHE_NAME = "boo-night-v7";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
-  "./app.js?v=6",
+  "./app.js?v=7",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-180.png",
   "./icon-192.png",
   "./icon-512.png",
   "./assets/ghosts/expression-sheet.png",
+  "./assets/ghosts/sleeping.png",
 ];
 
 self.addEventListener("install", (event) => {

@@ -18,6 +18,38 @@ async function inspectCanvas(page) {
   });
 }
 
+async function inspectSleepGhost(page) {
+  return page.locator("#sleepGhost").evaluate((canvas) => {
+    const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+    let visible = 0;
+    let transparent = 0;
+    let green = 0;
+    for (let offset = 0; offset < data.length; offset += 16) {
+      const red = data[offset];
+      const greenChannel = data[offset + 1];
+      const blue = data[offset + 2];
+      const alpha = data[offset + 3];
+      if (alpha > 16) visible += 1;
+      else transparent += 1;
+      if (alpha > 16 && greenChannel > red + 35 && greenChannel > blue + 35) green += 1;
+    }
+    return { visible, transparent, green };
+  });
+}
+
+async function countSoftWhitePixels(page) {
+  return page.locator("#world").evaluate((canvas) => {
+    const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+    let count = 0;
+    for (let offset = 0; offset < data.length; offset += 16) {
+      const red = data[offset];
+      const green = data[offset + 1];
+      const blue = data[offset + 2];
+      if (red > 180 && green > 180 && blue > 180 && Math.max(red, green, blue) - Math.min(red, green, blue) < 38) count += 1;
+    }
+    return count;
+  });
+}
 async function assertControlsInViewport(page) {
   const viewport = page.viewportSize();
   const selectors = ["#moonButton", "#soundButton", "#magicButton", "#parentButton"];
@@ -52,10 +84,36 @@ async function assertControlsInViewport(page) {
 
   await page.goto("http://127.0.0.1:4173", { waitUntil: "networkidle" });
   await page.waitForFunction(() => navigator.serviceWorker?.controller);
+  await page.waitForFunction(() => document.querySelector("#sleepGhost")?.classList.contains("ready"));
   await page.waitForTimeout(1000);
   const canvas = await inspectCanvas(page);
   if (canvas.uniqueSampleColors < 12) throw new Error(`Canvas looks blank: ${JSON.stringify(canvas)}`);
+  const sleepGhost = await inspectSleepGhost(page);
+  if (sleepGhost.visible < 5000 || sleepGhost.transparent < 5000 || sleepGhost.green > 20) {
+    throw new Error(`Sleeping ghost chroma key failed: ${JSON.stringify(sleepGhost)}`);
+  }
+  const appSource = await page.evaluate(() => fetch("app.js?v=7").then((response) => response.text()));
+  for (const marker of [
+    "const count = width < 500 ? 3 : 4;",
+    "size: random(16, 44)",
+    "Math.min(width * 0.94, height * 0.88) / 1.48",
+  ]) {
+    if (!appSource.includes(marker)) throw new Error(`Missing iteration marker: ${marker}`);
+  }
   const portraitControls = await assertControlsInViewport(page);
+  await page.locator("#sleepCurtain").evaluate((element) => { element.hidden = false; });
+  const sleepLayout = {
+    ghost: await page.locator("#sleepGhost").boundingBox(),
+    message: await page.locator("#sleepCurtain p").boundingBox(),
+    moon: await page.locator(".sleep-moon").boundingBox(),
+  };
+  if (!sleepLayout.ghost || !sleepLayout.message || !sleepLayout.moon
+      || sleepLayout.ghost.y + sleepLayout.ghost.height > sleepLayout.message.y
+      || sleepLayout.message.y + sleepLayout.message.height > 844) {
+    throw new Error(`Sleep layout overlaps or overflows: ${JSON.stringify(sleepLayout)}`);
+  }
+  await page.locator("#sleepCurtain").evaluate((element) => { element.hidden = true; });
+  const brightPixelsBeforeGiant = await countSoftWhitePixels(page);
 
   await page.locator("#moonButton").tap();
   if (!(await page.locator("#moonButton").getAttribute("class")).includes("active")) {
@@ -64,6 +122,12 @@ async function assertControlsInViewport(page) {
 
   await page.locator("#magicButton").tap();
   if (!(await page.locator("#toast").textContent())) throw new Error("Magic event did not run");
+  await page.locator("#magicButton").tap();
+  await page.waitForTimeout(500);
+  const brightPixelsAfterGiant = await countSoftWhitePixels(page);
+  if (brightPixelsAfterGiant < brightPixelsBeforeGiant * 1.35) {
+    throw new Error(`Giant ghost is not large enough: ${brightPixelsBeforeGiant} -> ${brightPixelsAfterGiant}`);
+  }
 
   await page.touchscreen.tap(195, 370);
   await page.mouse.move(195, 370);
@@ -92,7 +156,11 @@ async function assertControlsInViewport(page) {
 
   console.log(JSON.stringify({
     canvas,
+    sleepGhost,
+    brightPixelsBeforeGiant,
+    brightPixelsAfterGiant,
     portraitControls,
+    sleepLayout,
     landscapeCanvas,
     landscapeControls,
     serviceWorker: await page.evaluate(() => "serviceWorker" in navigator),

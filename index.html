@@ -47,11 +47,7 @@
 
     <div id="sleepCurtain" class="sleep-curtain" hidden>
       <div class="sleep-moon" aria-hidden="true"></div>
-      <div class="sleep-ghost" aria-hidden="true">
-        <span class="sleep-eye left"></span>
-        <span class="sleep-eye right"></span>
-        <span class="sleep-mouth"></span>
-      </div>
+      <canvas id="sleepGhost" class="sleep-ghost" width="640" height="640" aria-hidden="true"></canvas>
       <p>嘘，幽灵们睡着啦</p>
       <div class="zzz" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></div>
     </div>
@@ -79,6 +75,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </main>
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

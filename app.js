@@ -9,6 +9,7 @@
   const parentButton = document.querySelector("#parentButton");
   const parentDialog = document.querySelector("#parentDialog");
   const sleepCurtain = document.querySelector("#sleepCurtain");
+  const sleepGhostCanvas = document.querySelector("#sleepGhost");
   const wakeButton = document.querySelector("#wakeButton");
   const toast = document.querySelector("#toast");
 
@@ -20,6 +21,7 @@
   const clouds = [];
   const ghostSprites = new Map();
   const GHOST_SPRITE_ATLAS = "./assets/ghosts/expression-sheet.png";
+  const SLEEP_GHOST_ASSET = "./assets/ghosts/sleeping.png";
   const GHOST_SPRITE_FRAMES = {
     laugh: { x: 42, y: 52, width: 440, height: 400 },
     shy: { x: 528, y: 52, width: 450, height: 400, keepComponents: 3 },
@@ -200,6 +202,69 @@
       });
     } catch {
       ghostSprites.clear();
+    }
+  }
+
+  async function loadSleepGhost() {
+    try {
+      const image = new Image();
+      image.src = SLEEP_GHOST_ASSET;
+      await image.decode();
+      const surface = document.createElement("canvas");
+      surface.width = image.naturalWidth;
+      surface.height = image.naturalHeight;
+      const surfaceContext = surface.getContext("2d", { willReadFrequently: true });
+      surfaceContext.drawImage(image, 0, 0);
+      const pixels = surfaceContext.getImageData(0, 0, surface.width, surface.height);
+      const data = pixels.data;
+      let left = surface.width;
+      let top = surface.height;
+      let right = -1;
+      let bottom = -1;
+
+      for (let offset = 0; offset < data.length; offset += 4) {
+        const red = data[offset];
+        const green = data[offset + 1];
+        const blue = data[offset + 2];
+        const greenExcess = green - Math.max(red, blue);
+        if (greenExcess > 18) {
+          data[offset + 3] = clamp(Math.round((78 - greenExcess) / 60 * 255), 0, 255);
+          data[offset + 1] = Math.min(green, Math.max(red, blue) + 12);
+        }
+        if (data[offset + 3] > 16) {
+          const pixelIndex = offset / 4;
+          const x = pixelIndex % surface.width;
+          const y = Math.floor(pixelIndex / surface.width);
+          left = Math.min(left, x);
+          top = Math.min(top, y);
+          right = Math.max(right, x);
+          bottom = Math.max(bottom, y);
+        }
+      }
+
+      if (right < left || bottom < top) return;
+      surfaceContext.putImageData(pixels, 0, 0);
+      const subjectWidth = right - left + 1;
+      const subjectHeight = bottom - top + 1;
+      const cropSize = Math.max(subjectWidth, subjectHeight) * 1.14;
+      const centerX = (left + right) * 0.5;
+      const centerY = (top + bottom) * 0.5;
+      const sleepContext = sleepGhostCanvas.getContext("2d");
+      sleepContext.clearRect(0, 0, sleepGhostCanvas.width, sleepGhostCanvas.height);
+      sleepContext.drawImage(
+        surface,
+        centerX - cropSize * 0.5,
+        centerY - cropSize * 0.5,
+        cropSize,
+        cropSize,
+        0,
+        0,
+        sleepGhostCanvas.width,
+        sleepGhostCanvas.height,
+      );
+      sleepGhostCanvas.classList.add("ready");
+    } catch {
+      sleepGhostCanvas.classList.remove("ready");
     }
   }
 
@@ -426,7 +491,7 @@
 
   function createGhosts() {
     ghosts.length = 0;
-    const count = width < 500 ? 7 : 10;
+    const count = width < 500 ? 3 : 4;
     for (let i = 0; i < count; i += 1) {
       const large = i === 0;
       const size = large ? clamp(width * 0.34, 120, 185) : random(58, clamp(width * 0.21, 78, 125));
@@ -759,7 +824,7 @@
           gravity: -8,
           life: random(3, 5),
           maxLife: 5,
-          size: random(8, 22),
+          size: random(16, 44),
           rotation: 0,
           spin: 0,
           kind: "bubble",
@@ -769,7 +834,8 @@
       showToast("泡泡来啦");
       playSound("bubble");
     } else {
-      spawnGhost(width * 0.5, height * 0.38, clamp(width * 0.33, 125, 185), true);
+      const giantSize = Math.min(width * 0.94, height * 0.88) / 1.48;
+      spawnGhost(width * 0.5, height * 0.44, giantSize, true);
       showToast("大幽灵来玩啦");
     }
   }
@@ -940,6 +1006,7 @@
   resize();
   createGhosts();
   loadGhostSprites();
+  loadSleepGhost();
   requestAnimationFrame(frame);
 
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
