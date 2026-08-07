@@ -46,6 +46,11 @@
   let magicIndex = 0;
   let lastSkyTap = { time: 0, x: 0, y: 0 };
   let spotlight = { x: 0, y: 0 };
+  let motionPermissionRequested = false;
+  let motionListening = false;
+  let lastMotionSample = null;
+  let lastShakeAt = 0;
+  let dizzyTimer = 0;
 
   const random = (min, max) => min + Math.random() * (max - min);
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -341,6 +346,8 @@
       this.eyeTargetX = 0;
       this.eyeTargetY = 0;
       this.popArmed = false;
+      this.popInAt = options.popIn ? performance.now() : 0;
+      this.dizzyUntil = 0;
       this.variant = options.variant ?? Math.floor(random(0, 3));
     }
 
@@ -357,7 +364,8 @@
     }
 
     update(dt, now) {
-      const shy = this.shyUntil > now || (lightOn && distance(this.x, this.y, spotlight.x, spotlight.y) < Math.max(width, height) * 0.34);
+      const dizzy = this.dizzyUntil > now;
+      const shy = !dizzy && (this.shyUntil > now || (lightOn && distance(this.x, this.y, spotlight.x, spotlight.y) < Math.max(width, height) * 0.34));
       if (this.heldBy !== null) {
         const pullX = this.dragX - this.x;
         const pullY = this.dragY - this.y;
@@ -397,12 +405,12 @@
         this.x = margin;
         this.vx = Math.abs(this.vx) * 0.72 + 18;
         this.squash = 0.22;
-        playSound("bump", this.size);
+        if (!dizzy) playSound("bump", this.size);
       } else if (this.x > width - margin) {
         this.x = width - margin;
         this.vx = -Math.abs(this.vx) * 0.72 - 18;
         this.squash = 0.22;
-        playSound("bump", this.size);
+        if (!dizzy) playSound("bump", this.size);
       }
       if (this.y < margin + 42) {
         this.y = margin + 42;
@@ -444,20 +452,26 @@
     }
 
     draw(now) {
-      const shy = this.shyUntil > now || (lightOn && distance(this.x, this.y, spotlight.x, spotlight.y) < Math.max(width, height) * 0.34);
+      const dizzy = this.dizzyUntil > now;
+      const shy = !dizzy && (this.shyUntil > now || (lightOn && distance(this.x, this.y, spotlight.x, spotlight.y) < Math.max(width, height) * 0.34));
       const s = this.size;
       const squeezeX = 1 + this.stretch + this.squash;
       const squeezeY = 1 - this.stretch * 0.5 - this.squash * 0.58;
+      const popProgress = this.popInAt ? clamp((now - this.popInAt) / 620, 0, 1) : 1;
+      const popOffset = popProgress - 1;
+      const popScale = 1 + 2.70158 * popOffset ** 3 + 1.70158 * popOffset ** 2;
       ctx.save();
       ctx.translate(this.x, this.y);
-      ctx.rotate(this.spin);
-      ctx.scale(this.direction * squeezeX, squeezeY);
+      ctx.rotate(this.spin + (dizzy ? Math.sin(worldTime * 13 + this.phase) * 0.12 : 0));
+      ctx.scale(this.direction * squeezeX * popScale, squeezeY * popScale);
 
       ctx.shadowColor = lightOn ? "rgba(238,225,171,.28)" : "rgba(190,204,226,.18)";
       ctx.shadowBlur = s * 0.16;
       const speed = Math.hypot(this.vx, this.vy);
       const sleepyMoment = Math.sin(worldTime * 0.42 + this.phase) > 0.93;
-      const spriteKey = shy
+      const spriteKey = dizzy
+        ? "spinning"
+        : shy
         ? "shy"
         : this.popArmed
           ? "surprised"
@@ -560,18 +574,22 @@
     for (let i = particles.length - 1; i >= 0; i -= 1) {
       const p = particles[i];
       p.life -= dt;
-      if (p.life <= 0) {
-        particles.splice(i, 1);
-        continue;
-      }
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.vy += p.gravity * dt;
       p.rotation += p.spin * dt;
+      const reachedTop = p.kind === "bubble" && p.y < height * 0.06;
+      const reachedBottom = p.kind === "falling-star" && p.y - p.size > height;
+      if (p.life <= 0 || reachedTop || reachedBottom) {
+        particles.splice(i, 1);
+        continue;
+      }
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rotation);
-      ctx.globalAlpha = clamp(p.life / p.maxLife, 0, 1);
+      ctx.globalAlpha = p.kind === "bubble"
+        ? clamp((p.y - height * 0.06) / (height * 0.12), 0, 1)
+        : clamp(p.life / p.maxLife, 0, 1);
       if (p.kind === "heart") {
         ctx.fillStyle = p.color;
         ctx.beginPath();
@@ -589,6 +607,13 @@
         ctx.beginPath();
         ctx.arc(-p.size * 0.32, -p.size * 0.35, p.size * 0.16, 0, TAU);
         ctx.fill();
+      } else if (p.kind === "ring") {
+        const progress = 1 - p.life / p.maxLife;
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = Math.max(2, 7 * (1 - progress));
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size * (0.45 + progress * 1.35), 0, TAU);
+        ctx.stroke();
       } else {
         ctx.fillStyle = p.color;
         starPath(0, 0, p.size, 0.46);
@@ -665,6 +690,7 @@
     if (sleeping) return;
     event.preventDefault();
     ensureAudio();
+    requestMotionPermission();
     canvas.setPointerCapture(event.pointerId);
     const point = getPoint(event);
     const ghost = findGhost(point.x, point.y);
@@ -773,17 +799,36 @@
     vibrate([18, 25, 18]);
   }
 
-  function spawnGhost(x = random(70, width - 70), y = random(120, height - 160), size = random(58, 92), shy = false) {
+  function spawnGhost(x = random(70, width - 70), y = random(120, height - 160), size = random(58, 92), shy = false, options = {}) {
     if (ghosts.length >= 16) {
       ghosts[0].shy(1600);
       return;
     }
     const ghost = new Ghost(clamp(x, size * 0.5, width - size * 0.5), clamp(y, size * 0.5 + 50, height - size * 0.5 - 70), size, {
+      ...options,
       shy,
-      vy: -80,
+      vy: options.vy ?? -80,
     });
     ghosts.push(ghost);
-    burst(ghost.x, ghost.y, 10, "bubble");
+    if (options.popIn) {
+      particles.push({
+        x: ghost.x,
+        y: ghost.y,
+        vx: 0,
+        vy: 0,
+        gravity: 0,
+        life: 0.62,
+        maxLife: 0.62,
+        size: size * 0.62,
+        rotation: 0,
+        spin: 0,
+        kind: "ring",
+        color: "rgba(231, 230, 211, .72)",
+      });
+      burst(ghost.x, ghost.y, 14, "star");
+    } else {
+      burst(ghost.x, ghost.y, 10, "bubble");
+    }
     playSound("appear", size);
     vibrate(15);
   }
@@ -800,12 +845,12 @@
           vx: random(-16, 16),
           vy: random(80, 180),
           gravity: 25,
-          life: random(2.5, 4.2),
-          maxLife: 4.2,
+          life: 12,
+          maxLife: 12,
           size: random(6, 13),
           rotation: random(0, TAU),
           spin: random(-3, 3),
-          kind: "star",
+          kind: "falling-star",
           color: ["#ffe36b", "#ff8b70", "#9eeeff"][i % 3],
         });
       }
@@ -815,15 +860,15 @@
       showToast("星星雨");
       playSound("magic");
     } else if (magicIndex === 1) {
-      for (let i = 0; i < 22; i += 1) {
+      for (let i = 0; i < 12; i += 1) {
         particles.push({
           x: random(0, width),
-          y: height + random(10, 120),
+          y: height + random(10, 70),
           vx: random(-25, 25),
-          vy: random(-130, -55),
-          gravity: -8,
-          life: random(3, 5),
-          maxLife: 5,
+          vy: random(-180, -110),
+          gravity: -4,
+          life: 12,
+          maxLife: 12,
           size: random(16, 44),
           rotation: 0,
           spin: 0,
@@ -835,7 +880,7 @@
       playSound("bubble");
     } else {
       const giantSize = Math.min(width * 0.94, height * 0.88) / 1.48;
-      spawnGhost(width * 0.5, height * 0.44, giantSize, true);
+      spawnGhost(width * 0.5, height * 0.44, giantSize, true, { popIn: true });
       showToast("大幽灵来玩啦");
     }
   }
@@ -852,6 +897,78 @@
     vibrate(12);
   }
 
+  function screenMotionVector(x, y) {
+    const angle = screen.orientation?.angle ?? window.orientation ?? 0;
+    if (angle === 90) return { x: -y, y: x };
+    if (angle === 270 || angle === -90) return { x: y, y: -x };
+    if (Math.abs(angle) === 180) return { x: -x, y: -y };
+    return { x, y };
+  }
+
+  function makeGhostsDizzy(deltaX, deltaY, intensity) {
+    if (sleeping || !ghosts.length) return;
+    const now = performance.now();
+    const firstShake = !ghosts.some((ghost) => ghost.dizzyUntil > now);
+    const motion = screenMotionVector(deltaX, deltaY);
+    ghosts.forEach((ghost, index) => {
+      const scatter = intensity * (index % 2 === 0 ? 7 : -7);
+      ghost.vx = clamp(ghost.vx + motion.x * 18 + scatter + random(-45, 45), -520, 520);
+      ghost.vy = clamp(ghost.vy + motion.y * 18 - scatter + random(-45, 45), -520, 520);
+      ghost.spin = clamp(ghost.spin + random(-0.9, 0.9), -0.9, 0.9);
+      ghost.shyUntil = 0;
+      ghost.dizzyUntil = now + 3000;
+    });
+    document.documentElement.classList.add("ghosts-dizzy");
+    clearTimeout(dizzyTimer);
+    dizzyTimer = setTimeout(() => document.documentElement.classList.remove("ghosts-dizzy"), 3000);
+    if (firstShake) {
+      showToast("幽灵们转晕啦");
+      playSound("whoosh");
+      vibrate([12, 35, 12]);
+    }
+  }
+
+  function handleDeviceMotion(event) {
+    const source = event.acceleration?.x != null ? event.acceleration : event.accelerationIncludingGravity;
+    if (!source) return;
+    const sample = {
+      x: Number(source.x) || 0,
+      y: Number(source.y) || 0,
+      z: Number(source.z) || 0,
+    };
+    if (!lastMotionSample) {
+      lastMotionSample = sample;
+      return;
+    }
+    const deltaX = sample.x - lastMotionSample.x;
+    const deltaY = sample.y - lastMotionSample.y;
+    const deltaZ = sample.z - lastMotionSample.z;
+    const intensity = Math.hypot(deltaX, deltaY, deltaZ);
+    lastMotionSample = sample;
+    const now = performance.now();
+    if (intensity < 6.5 || now - lastShakeAt < 90) return;
+    lastShakeAt = now;
+    makeGhostsDizzy(deltaX, deltaY, clamp(intensity, 6.5, 24));
+  }
+
+  function installMotionListener() {
+    if (motionListening) return;
+    motionListening = true;
+    window.addEventListener("devicemotion", handleDeviceMotion);
+  }
+
+  async function requestMotionPermission() {
+    installMotionListener();
+    if (motionPermissionRequested) return;
+    const requestPermission = globalThis.DeviceMotionEvent?.requestPermission;
+    if (typeof requestPermission !== "function") return;
+    motionPermissionRequested = true;
+    try {
+      await requestPermission.call(globalThis.DeviceMotionEvent);
+    } catch {
+      motionPermissionRequested = false;
+    }
+  }
   function ensureAudio() {
     if (!soundOn || audioContext) return;
     const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -983,7 +1100,10 @@
   canvas.addEventListener("pointercancel", onPointerUp);
   moonButton.addEventListener("click", toggleLight);
   soundButton.addEventListener("click", toggleSound);
-  magicButton.addEventListener("click", magicEvent);
+  magicButton.addEventListener("click", () => {
+    requestMotionPermission();
+    magicEvent();
+  });
   parentButton.addEventListener("pointerdown", startParentHold);
   parentButton.addEventListener("pointerup", cancelParentHold);
   parentButton.addEventListener("pointercancel", cancelParentHold);
@@ -1007,6 +1127,7 @@
   createGhosts();
   loadGhostSprites();
   loadSleepGhost();
+  installMotionListener();
   requestAnimationFrame(frame);
 
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

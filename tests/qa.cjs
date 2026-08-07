@@ -1,5 +1,7 @@
 const { chromium } = require("playwright");
 
+let browser;
+
 async function inspectCanvas(page) {
   return page.locator("#world").evaluate((canvas) => {
     const context = canvas.getContext("2d");
@@ -50,6 +52,39 @@ async function countSoftWhitePixels(page) {
     return count;
   });
 }
+async function countMagicPixels(page, region, kind) {
+  return page.locator("#world").evaluate((canvas, { region, kind }) => {
+    const context = canvas.getContext("2d");
+    const startY = Math.floor(canvas.height * region[0]);
+    const endY = Math.floor(canvas.height * region[1]);
+    const data = context.getImageData(0, startY, canvas.width, endY - startY).data;
+    let count = 0;
+    for (let offset = 0; offset < data.length; offset += 4) {
+      const red = data[offset];
+      const green = data[offset + 1];
+      const blue = data[offset + 2];
+      const cyan = blue > 150 && green > 145 && blue - red > 24;
+      const pink = red > 165 && blue > 140 && red - green > 12;
+      const yellow = red > 175 && green > 155 && red - blue > 38;
+      const coral = red > 175 && green > 70 && green < 170 && red - blue > 45;
+      if (kind === "bubble" ? (cyan || pink || yellow) : (cyan || yellow || coral)) count += 1;
+    }
+    return count;
+  }, { region, kind });
+}
+
+async function triggerSyntheticShake(page) {
+  await page.evaluate(async () => {
+    const fire = (x, y, z) => {
+      const event = new Event("devicemotion");
+      Object.defineProperty(event, "acceleration", { value: { x, y, z } });
+      window.dispatchEvent(event);
+    };
+    fire(0, 0, 0);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    fire(15, -13, 8);
+  });
+}
 async function assertControlsInViewport(page) {
   const viewport = page.viewportSize();
   const selectors = ["#moonButton", "#soundButton", "#magicButton", "#parentButton"];
@@ -66,7 +101,7 @@ async function assertControlsInViewport(page) {
 
 (async () => {
   const executablePath = process.env.BROWSER_PATH;
-  const browser = await chromium.launch({
+  browser = await chromium.launch({
     headless: true,
     ...(executablePath ? { executablePath } : {}),
   });
@@ -92,11 +127,16 @@ async function assertControlsInViewport(page) {
   if (sleepGhost.visible < 5000 || sleepGhost.transparent < 5000 || sleepGhost.green > 20) {
     throw new Error(`Sleeping ghost chroma key failed: ${JSON.stringify(sleepGhost)}`);
   }
-  const appSource = await page.evaluate(() => fetch("app.js?v=7").then((response) => response.text()));
+  const appSource = await page.evaluate(() => fetch("app.js?v=8").then((response) => response.text()));
   for (const marker of [
     "const count = width < 500 ? 3 : 4;",
-    "size: random(16, 44)",
+    "for (let i = 0; i < 12; i += 1)",
+    "kind: \"falling-star\"",
+    "p.y < height * 0.06",
     "Math.min(width * 0.94, height * 0.88) / 1.48",
+    "{ popIn: true }",
+    "ghost.dizzyUntil = now + 3000",
+    "window.addEventListener(\"devicemotion\", handleDeviceMotion)",
   ]) {
     if (!appSource.includes(marker)) throw new Error(`Missing iteration marker: ${marker}`);
   }
@@ -122,11 +162,32 @@ async function assertControlsInViewport(page) {
 
   await page.locator("#magicButton").tap();
   if (!(await page.locator("#toast").textContent())) throw new Error("Magic event did not run");
+  await page.waitForTimeout(5000);
+  const bubblePixelsNearTop = await countMagicPixels(page, [0, 0.38], "bubble");
+  if (bubblePixelsNearTop < 40) throw new Error(`Bubbles did not reach the upper screen: ${bubblePixelsNearTop}`);
+
   await page.locator("#magicButton").tap();
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(90);
+  const brightPixelsDuringPopup = await countSoftWhitePixels(page);
+  await page.waitForTimeout(530);
   const brightPixelsAfterGiant = await countSoftWhitePixels(page);
-  if (brightPixelsAfterGiant < brightPixelsBeforeGiant * 1.35) {
-    throw new Error(`Giant ghost is not large enough: ${brightPixelsBeforeGiant} -> ${brightPixelsAfterGiant}`);
+  if (brightPixelsDuringPopup < brightPixelsBeforeGiant * 1.5
+      || brightPixelsAfterGiant < brightPixelsBeforeGiant * 1.35) {
+    throw new Error(`Giant popup did not expand enough: ${brightPixelsBeforeGiant} -> ${brightPixelsDuringPopup} -> ${brightPixelsAfterGiant}`);
+  }
+
+  await page.locator("#magicButton").tap();
+  await page.waitForTimeout(4500);
+  const starPixelsNearBottom = await countMagicPixels(page, [0.78, 1], "star");
+  if (starPixelsNearBottom < 30) throw new Error(`Falling stars did not reach the bottom: ${starPixelsNearBottom}`);
+
+  await triggerSyntheticShake(page);
+  await page.waitForFunction(() => document.documentElement.classList.contains("ghosts-dizzy"));
+  const dizzyToast = await page.locator("#toast").textContent();
+  if (!dizzyToast.includes("转晕")) throw new Error(`Shake feedback missing: ${dizzyToast}`);
+  await page.waitForTimeout(3100);
+  if (await page.evaluate(() => document.documentElement.classList.contains("ghosts-dizzy"))) {
+    throw new Error("Dizzy state lasted longer than expected");
   }
 
   await page.touchscreen.tap(195, 370);
@@ -158,7 +219,11 @@ async function assertControlsInViewport(page) {
     canvas,
     sleepGhost,
     brightPixelsBeforeGiant,
+    bubblePixelsNearTop,
+    brightPixelsDuringPopup,
     brightPixelsAfterGiant,
+    starPixelsNearBottom,
+    dizzyToast,
     portraitControls,
     sleepLayout,
     landscapeCanvas,
@@ -167,7 +232,8 @@ async function assertControlsInViewport(page) {
     status: "PASS",
   }, null, 2));
   await browser.close();
-})().catch((error) => {
+})().catch(async (error) => {
   console.error(error);
+  if (browser) await browser.close();
   process.exitCode = 1;
 });
