@@ -1,4 +1,4 @@
-const CACHE_NAME = "boo-night-v1";
+const CACHE_NAME = "boo-night-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -9,6 +9,12 @@ const APP_SHELL = [
   "./icon-180.png",
   "./icon-192.png",
   "./icon-512.png",
+  "./assets/ghosts/mischievous-laugh.png",
+  "./assets/ghosts/shy.png",
+  "./assets/ghosts/surprised.png",
+  "./assets/ghosts/cheeky-wink.png",
+  "./assets/ghosts/sleepy.png",
+  "./assets/ghosts/spinning.png",
 ];
 
 self.addEventListener("install", (event) => {

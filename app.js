@@ -18,6 +18,15 @@
   const particles = [];
   const stars = [];
   const clouds = [];
+  const ghostSprites = new Map();
+  const GHOST_SPRITE_SOURCES = {
+    laugh: "./assets/ghosts/mischievous-laugh.png",
+    shy: "./assets/ghosts/shy.png",
+    surprised: "./assets/ghosts/surprised.png",
+    cheeky: "./assets/ghosts/cheeky-wink.png",
+    sleepy: "./assets/ghosts/sleepy.png",
+    spinning: "./assets/ghosts/spinning.png",
+  };
   let width = 0;
   let height = 0;
   let dpr = 1;
@@ -38,6 +47,55 @@
   const random = (min, max) => min + Math.random() * (max - min);
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const distance = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
+
+  function removeFlatBackground(image) {
+    const surface = document.createElement("canvas");
+    surface.width = image.naturalWidth;
+    surface.height = image.naturalHeight;
+    const surfaceContext = surface.getContext("2d", { willReadFrequently: true });
+    surfaceContext.drawImage(image, 0, 0);
+
+    const pixels = surfaceContext.getImageData(0, 0, surface.width, surface.height);
+    const data = pixels.data;
+    const samplePoints = [
+      [4, 4],
+      [surface.width - 5, 4],
+      [4, surface.height - 5],
+      [surface.width - 5, surface.height - 5],
+    ];
+    const background = samplePoints.reduce((color, [x, y]) => {
+      const index = (y * surface.width + x) * 4;
+      color[0] += data[index];
+      color[1] += data[index + 1];
+      color[2] += data[index + 2];
+      return color;
+    }, [0, 0, 0]).map((channel) => channel / samplePoints.length);
+
+    for (let index = 0; index < data.length; index += 4) {
+      const red = data[index] - background[0];
+      const green = data[index + 1] - background[1];
+      const blue = data[index + 2] - background[2];
+      const colorDistance = Math.sqrt(red * red + green * green + blue * blue);
+      if (colorDistance <= 10) {
+        data[index + 3] = 0;
+      } else if (colorDistance < 62) {
+        data[index + 3] = Math.round(255 * (colorDistance - 10) / 52);
+      }
+    }
+    surfaceContext.putImageData(pixels, 0, 0);
+    return surface;
+  }
+
+  async function loadGhostSprites() {
+    await Promise.all(Object.entries(GHOST_SPRITE_SOURCES).map(async ([key, source]) => {
+      const image = new Image();
+      image.src = source;
+      await image.decode();
+      ghostSprites.set(key, removeFlatBackground(image));
+    })).catch(() => {
+      ghostSprites.clear();
+    });
+  }
 
   function resize() {
     const oldWidth = width || innerWidth;
@@ -226,6 +284,36 @@
 
       ctx.shadowColor = lightOn ? "rgba(255,241,166,.58)" : "rgba(164,190,255,.28)";
       ctx.shadowBlur = s * 0.24;
+      const speed = Math.hypot(this.vx, this.vy);
+      const sleepyMoment = Math.sin(worldTime * 0.42 + this.phase) > 0.93;
+      const spriteKey = shy
+        ? "shy"
+        : this.popArmed
+          ? "surprised"
+          : this.heldBy !== null
+            ? "cheeky"
+            : speed > 240
+              ? "spinning"
+              : sleepyMoment
+                ? "sleepy"
+                : "laugh";
+      const sprite = ghostSprites.get(spriteKey);
+      if (sprite) {
+        const spriteSize = s * 1.48;
+        ctx.drawImage(sprite, -spriteSize * 0.5, -spriteSize * 0.5, spriteSize, spriteSize);
+        ctx.shadowBlur = 0;
+        if (this.popArmed) {
+          ctx.fillStyle = `rgba(255, 226, 105, ${0.45 + Math.sin(worldTime * 10) * 0.3})`;
+          for (let i = 0; i < 4; i += 1) {
+            const angle = worldTime * 1.8 + i * TAU / 4;
+            starPath(Math.cos(angle) * s * 0.68, Math.sin(angle) * s * 0.6, s * 0.055, 0.45);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+        return;
+      }
+
       const bodyGradient = ctx.createRadialGradient(-s * 0.17, -s * 0.28, s * 0.05, 0, 0, s * 0.72);
       bodyGradient.addColorStop(0, "#ffffff");
       bodyGradient.addColorStop(0.58, this.variant === 2 ? "#eef3ff" : "#f6f7ff");
@@ -865,6 +953,7 @@
   soundButton.setAttribute("aria-label", soundOn ? "关闭声音" : "打开声音");
   resize();
   createGhosts();
+  loadGhostSprites();
   requestAnimationFrame(frame);
 
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
