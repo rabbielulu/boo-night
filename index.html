@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#080817">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="幽灵之夜">
+  <title>幽灵之夜</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="game" aria-label="幽灵之夜互动游戏">
+    <canvas id="world"></canvas>
+
+    <div class="top-controls">
+      <button id="moonButton" class="icon-button moon-button" type="button" aria-label="月光躲猫猫" title="月光躲猫猫">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20.5 14.2A8.1 8.1 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2Z"/>
+        </svg>
+      </button>
+      <button id="soundButton" class="icon-button" type="button" aria-label="关闭声音" title="声音">
+        <svg class="sound-on" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z"/>
+          <path class="sound-wave" d="M15 9.2a4 4 0 0 1 0 5.6M18 6.5a7.7 7.7 0 0 1 0 11"/>
+        </svg>
+      </button>
+    </div>
+
+    <button id="magicButton" class="magic-button" type="button" aria-label="召唤魔法" title="召唤魔法">
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <path d="m24 4 5.3 12.3L43 18l-10.2 9 3 13.3L24 33.4l-11.8 6.9 3-13.3L5 18l13.7-1.7L24 4Z"/>
+      </svg>
+    </button>
+
+    <button id="parentButton" class="parent-button" type="button" aria-label="家长设置" title="长按打开家长设置">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9.6 3h4.8l.6 2.1 1.5.9 2.1-.6 2.4 4.2-1.5 1.5v1.8l1.5 1.5-2.4 4.2-2.1-.6-1.5.9-.6 2.1H9.6L9 18.9 7.5 18l-2.1.6L3 14.4l1.5-1.5v-1.8L3 9.6l2.4-4.2 2.1.6L9 5.1 9.6 3Z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+      <span class="hold-ring"></span>
+    </button>
+
+    <div id="sleepCurtain" class="sleep-curtain" hidden>
+      <div class="sleep-moon" aria-hidden="true"></div>
+      <div class="sleep-ghost" aria-hidden="true">
+        <span class="sleep-eye left"></span>
+        <span class="sleep-eye right"></span>
+        <span class="sleep-mouth"></span>
+      </div>
+      <p>嘘，幽灵们睡着啦</p>
+      <div class="zzz" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></div>
+    </div>
+
+    <dialog id="parentDialog">
+      <form method="dialog">
+        <div class="dialog-heading">
+          <h1>家长设置</h1>
+          <button class="close-button" value="close" aria-label="关闭">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+          </button>
+        </div>
+        <fieldset>
+          <legend>自动休息</legend>
+          <div class="segmented">
+            <label><input type="radio" name="timer" value="5"><span>5 分钟</span></label>
+            <label><input type="radio" name="timer" value="10"><span>10 分钟</span></label>
+            <label><input type="radio" name="timer" value="0"><span>关闭</span></label>
+          </div>
+        </fieldset>
+        <button id="wakeButton" class="wake-button" value="close" type="submit">继续玩</button>
+        <p class="privacy-note">纯离线游戏，不收集任何数据。</p>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
