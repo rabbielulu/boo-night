@@ -19,13 +19,14 @@
   const stars = [];
   const clouds = [];
   const ghostSprites = new Map();
-  const GHOST_SPRITE_SOURCES = {
-    laugh: "./assets/ghosts/mischievous-laugh.png",
-    shy: "./assets/ghosts/shy.png",
-    surprised: "./assets/ghosts/surprised.png",
-    cheeky: "./assets/ghosts/cheeky-wink.png",
-    sleepy: "./assets/ghosts/sleepy.png",
-    spinning: "./assets/ghosts/spinning.png",
+  const GHOST_SPRITE_ATLAS = "./assets/ghosts/expression-sheet.png";
+  const GHOST_SPRITE_FRAMES = {
+    laugh: { x: 42, y: 52, width: 440, height: 400 },
+    shy: { x: 528, y: 52, width: 450, height: 400 },
+    surprised: { x: 1018, y: 52, width: 450, height: 400 },
+    spinning: { x: 42, y: 525, width: 440, height: 395 },
+    sleepy: { x: 528, y: 525, width: 450, height: 395 },
+    cheeky: { x: 1018, y: 525, width: 450, height: 395 },
   };
   let width = 0;
   let height = 0;
@@ -48,53 +49,131 @@
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const distance = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 
-  function removeFlatBackground(image) {
+  function extractCleanSprite(image, frame) {
     const surface = document.createElement("canvas");
-    surface.width = image.naturalWidth;
-    surface.height = image.naturalHeight;
+    surface.width = frame.width;
+    surface.height = frame.height;
     const surfaceContext = surface.getContext("2d", { willReadFrequently: true });
-    surfaceContext.drawImage(image, 0, 0);
+    surfaceContext.drawImage(
+      image,
+      frame.x,
+      frame.y,
+      frame.width,
+      frame.height,
+      0,
+      0,
+      frame.width,
+      frame.height,
+    );
 
     const pixels = surfaceContext.getImageData(0, 0, surface.width, surface.height);
     const data = pixels.data;
-    const samplePoints = [
-      [4, 4],
-      [surface.width - 5, 4],
-      [4, surface.height - 5],
-      [surface.width - 5, surface.height - 5],
-    ];
-    const background = samplePoints.reduce((color, [x, y]) => {
-      const index = (y * surface.width + x) * 4;
-      color[0] += data[index];
-      color[1] += data[index + 1];
-      color[2] += data[index + 2];
-      return color;
-    }, [0, 0, 0]).map((channel) => channel / samplePoints.length);
+    const pixelCount = surface.width * surface.height;
+    const background = new Uint8Array(pixelCount);
+    const queue = new Int32Array(pixelCount);
+    let head = 0;
+    let tail = 0;
 
-    for (let index = 0; index < data.length; index += 4) {
-      const red = data[index] - background[0];
-      const green = data[index + 1] - background[1];
-      const blue = data[index + 2] - background[2];
-      const colorDistance = Math.sqrt(red * red + green * green + blue * blue);
-      if (colorDistance <= 10) {
-        data[index + 3] = 0;
-      } else if (colorDistance < 62) {
-        data[index + 3] = Math.round(255 * (colorDistance - 10) / 52);
-      }
+    const enqueueBackground = (pixelIndex) => {
+      if (background[pixelIndex]) return;
+      background[pixelIndex] = 1;
+      queue[tail] = pixelIndex;
+      tail += 1;
+    };
+
+    for (let x = 0; x < surface.width; x += 1) {
+      enqueueBackground(x);
+      enqueueBackground((surface.height - 1) * surface.width + x);
     }
+    for (let y = 1; y < surface.height - 1; y += 1) {
+      enqueueBackground(y * surface.width);
+      enqueueBackground(y * surface.width + surface.width - 1);
+    }
+
+    const canFlow = (fromPixel, toPixel) => {
+      const from = fromPixel * 4;
+      const to = toPixel * 4;
+      const red = data[from] - data[to];
+      const green = data[from + 1] - data[to + 1];
+      const blue = data[from + 2] - data[to + 2];
+      return red * red + green * green + blue * blue < 900;
+    };
+
+    const tryBackgroundNeighbor = (pixelIndex, neighbor) => {
+      if (!background[neighbor] && canFlow(pixelIndex, neighbor)) enqueueBackground(neighbor);
+    };
+
+    while (head < tail) {
+      const pixelIndex = queue[head];
+      head += 1;
+      const x = pixelIndex % surface.width;
+      const y = Math.floor(pixelIndex / surface.width);
+      if (x > 0) tryBackgroundNeighbor(pixelIndex, pixelIndex - 1);
+      if (x < surface.width - 1) tryBackgroundNeighbor(pixelIndex, pixelIndex + 1);
+      if (y > 0) tryBackgroundNeighbor(pixelIndex, pixelIndex - surface.width);
+      if (y < surface.height - 1) tryBackgroundNeighbor(pixelIndex, pixelIndex + surface.width);
+    }
+
+    for (let pixelIndex = 0; pixelIndex < pixelCount; pixelIndex += 1) {
+      if (background[pixelIndex]) data[pixelIndex * 4 + 3] = 0;
+    }
+
+    const visited = new Uint8Array(pixelCount);
+    let largestComponent = [];
+    for (let start = 0; start < pixelCount; start += 1) {
+      if (visited[start] || data[start * 4 + 3] === 0) continue;
+      const component = [];
+      head = 0;
+      tail = 0;
+      visited[start] = 1;
+      queue[tail] = start;
+      tail += 1;
+
+      const enqueueComponent = (neighbor) => {
+        if (!visited[neighbor] && data[neighbor * 4 + 3] > 0) {
+          visited[neighbor] = 1;
+          queue[tail] = neighbor;
+          tail += 1;
+        }
+      };
+
+      while (head < tail) {
+        const pixelIndex = queue[head];
+        head += 1;
+        component.push(pixelIndex);
+        const x = pixelIndex % surface.width;
+        const y = Math.floor(pixelIndex / surface.width);
+        if (x > 0) enqueueComponent(pixelIndex - 1);
+        if (x < surface.width - 1) enqueueComponent(pixelIndex + 1);
+        if (y > 0) enqueueComponent(pixelIndex - surface.width);
+        if (y < surface.height - 1) enqueueComponent(pixelIndex + surface.width);
+      }
+      if (component.length > largestComponent.length) largestComponent = component;
+    }
+
+    const keep = new Uint8Array(pixelCount);
+    largestComponent.forEach((pixelIndex) => {
+      keep[pixelIndex] = 1;
+    });
+    for (let pixelIndex = 0; pixelIndex < pixelCount; pixelIndex += 1) {
+      if (!keep[pixelIndex]) data[pixelIndex * 4 + 3] = 0;
+    }
+
     surfaceContext.putImageData(pixels, 0, 0);
     return surface;
   }
 
   async function loadGhostSprites() {
-    await Promise.all(Object.entries(GHOST_SPRITE_SOURCES).map(async ([key, source]) => {
+    try {
       const image = new Image();
-      image.src = source;
+      image.src = GHOST_SPRITE_ATLAS;
       await image.decode();
-      ghostSprites.set(key, removeFlatBackground(image));
-    })).catch(() => {
+      Object.entries(GHOST_SPRITE_FRAMES).forEach(([key, frame]) => {
+        ghostSprites.set(key, extractCleanSprite(image, frame));
+      });
+    } catch {
       ghostSprites.clear();
-    });
+    }
   }
 
   function resize() {
