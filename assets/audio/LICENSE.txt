@@ -9,3 +9,11 @@ https://creativecommons.org/publicdomain/zero/1.0/
 
 These assets may be used in personal, educational, and commercial projects.
 Credit to Kenney (https://www.kenney.nl/) is appreciated but not required.
+
+Hello, Mario! replacements
+
+The following files were replaced from the user-provided Hello, Mario!
+sound-effects library and are not covered by the Kenney CC0 license:
+- touch-1.wav: WU_SE_EMY_TERESA.wav
+- touch-2.wav: WU_SE_EMY_TERESA_STOP.wav
+- magic.wav: SE_FaceTwinkle.wav
